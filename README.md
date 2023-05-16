@@ -28,7 +28,7 @@ source $HOME/export-esp.sh
 ### Extra Tooling for Convenient Code Flashing and Uploading
 
 ```bash
-cargo binstall espflash
+cargo install espflash --version 2.0.0-rc.3
 cargo binstall cargo-espflash
 ```
 

@@ -8,7 +8,7 @@ fn main() -> Result<(), EspError> {
     esp_idf_svc::log::EspLogger::initialize_default();
 
     use esp_idf_hal::peripherals::Peripherals;
-    let Peripherals { modem, .. } = Peripherals::take().ok_or(EspError::from_infallible::<-1>())?;
+    let Peripherals { modem, pins, .. } = Peripherals::take().ok_or(EspError::from_infallible::<-1>())?;
 
     use esp_idf_svc::{eventloop::EspSystemEventLoop, nvs::EspDefaultNvsPartition, wifi::EspWifi};
     let sys_loop = EspSystemEventLoop::take()?;
@@ -44,6 +44,10 @@ fn main() -> Result<(), EspError> {
             break 'connect;
         }
     }
+
+    use esp_idf_hal::gpio::PinDriver;
+    let mut led = PinDriver::output(pins.gpio4)?;
+    led.set_high()?;
 
     use embedded_svc::ipv4::IpInfo;
     let IpInfo { ip, subnet, .. } = wifi.sta_netif().get_ip_info()?;

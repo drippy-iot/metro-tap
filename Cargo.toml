@@ -14,14 +14,18 @@ opt-level = "s"
 debug = true
 opt-level = "z"
 
-[features]
-pio = ["esp-idf-sys/pio"]
-
 [dependencies]
-esp-idf-sys = { version = "0.33.0", features = ["binstart"] }
-esp-idf-hal = { version = "0.41.1" }
-esp-idf-svc = { version = "0.46.0" }
-embedded-svc = { version = "0.25.0", default-features = false, features = ["std", "log"] }
+esp-idf-hal = "0.41.1"
+esp-idf-svc = "0.46.0"
+
+[dependencies.embedded-svc]
+version = "0.25.0"
+default-features = false
+features = ["std", "log"]
+
+[dependencies.esp-idf-sys]
+version = "0.33.0"
+features = ["binstart"]
 
 [build-dependencies]
 embuild = "0.31.1"

@@ -1,5 +1,5 @@
 [package]
-name = "metro"
+name = "metro-tap"
 version = "0.1.0"
 authors = ["Basti Ortiz <39114273+BastiDood@users.noreply.github.com>"]
 edition = "2021"
@@ -17,6 +17,7 @@ opt-level = "z"
 [dependencies]
 esp-idf-hal = "0.41.1"
 esp-idf-svc = "0.46.0"
+log = "0.4"
 
 [dependencies.embedded-svc]
 version = "0.25.0"

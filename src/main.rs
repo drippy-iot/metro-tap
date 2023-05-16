@@ -5,6 +5,8 @@ fn main() -> Result<(), EspError> {
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_sys::link_patches();
 
+    esp_idf_svc::log::EspLogger::initialize_default();
+
     use esp_idf_hal::peripherals::Peripherals;
     let Peripherals { modem, .. } = Peripherals::take().ok_or(EspError::from_infallible::<-1>())?;
 
@@ -12,26 +14,40 @@ fn main() -> Result<(), EspError> {
     let sys_loop = EspSystemEventLoop::take()?;
     let nvs = EspDefaultNvsPartition::take()?;
 
-    use embedded_svc::wifi::{AuthMethod, ClientConfiguration, Configuration};
+    use embedded_svc::wifi::{ClientConfiguration, Configuration};
     let mut wifi = EspWifi::new(modem, sys_loop, Some(nvs))?;
 
-    let conf = Configuration::Client(ClientConfiguration {
-        ssid: "SSID".into(),
-        password: "PASSWORD".into(),
-        auth_method: AuthMethod::WPA2Personal,
-        ..Default::default()
-    });
+    log::info!("Setting Wi-Fi default configuration...");
+    wifi.set_configuration(&Configuration::Client(ClientConfiguration::default()))?;
 
-    println!("Setting Wi-Fi configuration...");
-    wifi.set_configuration(&conf)?;
-
-    println!("Starting Wi-Fi...");
+    log::info!("Starting Wi-Fi...");
     wifi.start()?;
 
-    println!("Connecting Wi-Fi...");
-    wifi.connect()?;
+    'connect: loop {
+        use embedded_svc::wifi::AccessPointInfo;
+        log::info!("Starting a new round of scanning...");
+        for AccessPointInfo { ssid, signal_strength, auth_method, .. } in wifi.scan()? {
+            let Some(name) = ssid.strip_prefix("DRIPPY_") else {
+                log::info!("Skipping {ssid} [{signal_strength}]...");
+                continue;
+            };
 
-    // TODO: TCP Listener or whatever...
+            log::info!("Attempting to connect to {name} [{signal_strength}]...");
+            wifi.set_configuration(&Configuration::Client(ClientConfiguration {
+                ssid,
+                auth_method,
+                password: "drippy-test".into(),
+                ..Default::default()
+            }))?;
+            wifi.connect()?;
+
+            break 'connect;
+        }
+    }
+
+    use embedded_svc::ipv4::IpInfo;
+    let IpInfo { ip, subnet, .. } = wifi.ap_netif().get_ip_info()?;
+    log::info!("Now connected as {ip} in subnet {subnet}.");
 
     Ok(())
 }

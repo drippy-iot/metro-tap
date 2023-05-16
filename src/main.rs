@@ -53,5 +53,8 @@ fn main() -> Result<(), EspError> {
     let IpInfo { ip, subnet, .. } = wifi.sta_netif().get_ip_info()?;
     log::info!("Now connected as {ip} in subnet {subnet}.");
 
+    use esp_idf_hal::task::executor::{EspExecutor, Local};
+    let exec = EspExecutor::<4, Local>::new();
+
     Ok(())
 }

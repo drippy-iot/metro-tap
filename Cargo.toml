@@ -15,7 +15,6 @@ debug = true
 opt-level = "z"
 
 [dependencies]
-esp-idf-hal = "0.41.1"
 esp-idf-svc = "0.46.0"
 log = "0.4"
 
@@ -23,6 +22,10 @@ log = "0.4"
 version = "0.25.0"
 default-features = false
 features = ["std", "log"]
+
+[dependencies.esp-idf-hal]
+version = "0.41.1"
+features = ["edge-executor"]
 
 [dependencies.esp-idf-sys]
 version = "0.33.0"

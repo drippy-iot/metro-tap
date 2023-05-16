@@ -13,7 +13,7 @@ fn main() -> Result<(), EspError> {
     let nvs = EspDefaultNvsPartition::take()?;
 
     use embedded_svc::wifi::{AuthMethod, ClientConfiguration, Configuration};
-    let mut wifi = EspWifi::new(modem, sys_loop.clone(), Some(nvs))?;
+    let mut wifi = EspWifi::new(modem, sys_loop, Some(nvs))?;
 
     let conf = Configuration::Client(ClientConfiguration {
         ssid: "SSID".into(),

@@ -26,9 +26,10 @@ fn main() -> Result<(), EspError> {
     'connect: loop {
         use embedded_svc::wifi::AccessPointInfo;
         log::info!("Starting a new round of scanning...");
+
         for AccessPointInfo { ssid, signal_strength, auth_method, .. } in wifi.scan()? {
             let Some(name) = ssid.strip_prefix("DRIPPY_") else {
-                log::info!("Skipping {ssid} [{signal_strength}]...");
+                log::warn!("Skipping {ssid} [{signal_strength}]...");
                 continue;
             };
 
@@ -40,13 +41,12 @@ fn main() -> Result<(), EspError> {
                 ..Default::default()
             }))?;
             wifi.connect()?;
-
             break 'connect;
         }
     }
 
     use embedded_svc::ipv4::IpInfo;
-    let IpInfo { ip, subnet, .. } = wifi.ap_netif().get_ip_info()?;
+    let IpInfo { ip, subnet, .. } = wifi.sta_netif().get_ip_info()?;
     log::info!("Now connected as {ip} in subnet {subnet}.");
 
     Ok(())

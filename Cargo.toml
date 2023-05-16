@@ -24,7 +24,7 @@ default-features = false
 features = ["std", "log"]
 
 [dependencies.esp-idf-hal]
-version = "0.41.1"
+version = "0.41.0"
 features = ["edge-executor"]
 
 [dependencies.esp-idf-sys]
@@ -33,8 +33,3 @@ features = ["binstart"]
 
 [build-dependencies]
 embuild = "0.31.1"
-
-# v5.0 and master require patches due to https://github.com/esp-rs/esp-idf-template/issues/91#issuecomment-1508241327
-[patch.crates-io]
-esp-idf-hal = { git = "https://github.com/esp-rs/esp-idf-hal" }
-esp-idf-svc = { git = "https://github.com/esp-rs/esp-idf-svc" }

@@ -15,7 +15,7 @@ cargo install ldproxy
 
 ```bash
 # Enable installing pre-built binaries without building them from scratch with `cargo install`.
-cargo install binstall
+cargo install cargo-binstall
 
 # Set up Espressif's custom toolchain (forked from LLVM and `rustc`) for Xtensa architecture support.
 cargo binstall espup

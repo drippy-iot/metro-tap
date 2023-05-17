@@ -21,7 +21,7 @@ fn main() -> anyhow::Result<()> {
 
     esp_idf_svc::log::EspLogger::initialize_default();
 
-    let Peripherals { modem, pins: Pins { gpio18: tap_toggle, gpio23: flow_sensor, .. }, .. } =
+    let Peripherals { modem, pins: Pins { gpio18: tap_pin, gpio23: flow_sensor_pin, .. }, .. } =
         Peripherals::take().ok_or(EspError::from_infallible::<-1>())?;
 
     let sys_loop = EspSystemEventLoop::take()?;
@@ -64,12 +64,12 @@ fn main() -> anyhow::Result<()> {
 
     let exec = EspExecutor::<16, Local>::new();
 
-    let flow = PinDriver::input(flow_sensor)?;
+    let flow = PinDriver::input(flow_sensor_pin)?;
     exec.spawn(flow::detect(flow))?.detach();
 
-    let mut faucet_button = PinDriver::input(tap_toggle)?;
+    let mut faucet_button = PinDriver::input(tap_pin)?;
     faucet_button.set_pull(Pull::Up)?;
-    exec.spawn(button::tap_toggle(timer, faucet_button))?.detach();
+    exec.spawn(button::tap::toggle(timer, faucet_button))?.detach();
 
     exec.run(|| true);
     Ok(())

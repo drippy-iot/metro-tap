@@ -6,7 +6,7 @@ use esp_idf_svc::timer::EspTimer;
 static TAP: AtomicBool = AtomicBool::new(false);
 
 /// The pin must be a pull-up input.
-pub async fn tap_toggle<T: GpioPin>(
+pub async fn toggle<T: GpioPin>(
     mut timer: AsyncTimer<EspTimer>,
     mut pin: PinDriver<'_, T, Input>,
 ) -> Result<(), GpioError> {
@@ -17,10 +17,12 @@ pub async fn tap_toggle<T: GpioPin>(
         log::info!("previous value for faucet is {prev}");
 
         // Three-second debounce is necessary so that the solenoid valve doesn't break.
-        timer.after(Duration::from_secs(3)).unwrap().await;
+        const DEBOUNCE: Duration = Duration::from_secs(3);
+        timer.after(DEBOUNCE).unwrap().await;
     }
 }
 
-pub async fn detect_reset() {
-    core::todo!()
+/// Checks if the faucet has been toggled on.
+pub fn is_on() -> bool {
+    TAP.load(Ordering::Relaxed)
 }

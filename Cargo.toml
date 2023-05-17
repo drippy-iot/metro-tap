@@ -15,6 +15,7 @@ debug = true
 opt-level = "z"
 
 [dependencies]
+anyhow = "1"
 esp-idf-svc = "0.46.0"
 log = "0.4"
 

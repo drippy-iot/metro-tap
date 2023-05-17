@@ -1,14 +1,17 @@
+mod flow;
+
 use esp_idf_sys::{self as _, EspError};
 
-fn main() -> Result<(), EspError> {
+fn main() -> anyhow::Result<()> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_sys::link_patches();
 
     esp_idf_svc::log::EspLogger::initialize_default();
 
-    use esp_idf_hal::peripherals::Peripherals;
-    let Peripherals { modem, pins, .. } = Peripherals::take().ok_or(EspError::from_infallible::<-1>())?;
+    use esp_idf_hal::{gpio::Pins, peripherals::Peripherals};
+    let Peripherals { modem, pins: Pins { gpio19: flow_sensor, .. }, .. } =
+        Peripherals::take().ok_or(EspError::from_infallible::<-1>())?;
 
     use esp_idf_svc::{eventloop::EspSystemEventLoop, nvs::EspDefaultNvsPartition, wifi::EspWifi};
     let sys_loop = EspSystemEventLoop::take()?;
@@ -45,16 +48,17 @@ fn main() -> Result<(), EspError> {
         }
     }
 
-    use esp_idf_hal::gpio::PinDriver;
-    let mut led = PinDriver::output(pins.gpio4)?;
-    led.set_high()?;
-
     use embedded_svc::ipv4::IpInfo;
     let IpInfo { ip, subnet, .. } = wifi.ap_netif().get_ip_info()?;
     log::info!("Now connected as {ip} in subnet {subnet}.");
 
-    use esp_idf_hal::task::executor::{EspExecutor, Local};
-    let exec = EspExecutor::<4, Local>::new();
+    use esp_idf_hal::{
+        gpio::PinDriver,
+        task::executor::{EspExecutor, Local},
+    };
+    let exec = EspExecutor::<16, Local>::new();
+    exec.spawn(flow::detect(PinDriver::input(flow_sensor)?))?.detach();
+    exec.run(|| true);
 
     Ok(())
 }

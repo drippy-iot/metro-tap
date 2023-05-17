@@ -1,5 +1,17 @@
+mod button;
 mod flow;
 
+use embedded_svc::{
+    ipv4::IpInfo,
+    utils::asyncify::timer::AsyncTimerService,
+    wifi::{AccessPointInfo, ClientConfiguration, Configuration},
+};
+use esp_idf_hal::{
+    gpio::{PinDriver, Pins, Pull},
+    peripherals::Peripherals,
+    task::executor::{EspExecutor, Local},
+};
+use esp_idf_svc::{eventloop::EspSystemEventLoop, nvs::EspDefaultNvsPartition, timer::EspTimerService, wifi::EspWifi};
 use esp_idf_sys::{self as _, EspError};
 
 fn main() -> anyhow::Result<()> {
@@ -9,15 +21,15 @@ fn main() -> anyhow::Result<()> {
 
     esp_idf_svc::log::EspLogger::initialize_default();
 
-    use esp_idf_hal::{gpio::Pins, peripherals::Peripherals};
-    let Peripherals { modem, pins: Pins { gpio19: flow_sensor, .. }, .. } =
+    let Peripherals { modem, pins: Pins { gpio18: tap_toggle, gpio23: flow_sensor, .. }, .. } =
         Peripherals::take().ok_or(EspError::from_infallible::<-1>())?;
 
-    use esp_idf_svc::{eventloop::EspSystemEventLoop, nvs::EspDefaultNvsPartition, wifi::EspWifi};
     let sys_loop = EspSystemEventLoop::take()?;
     let nvs = EspDefaultNvsPartition::take()?;
+    let mut timer_svc = AsyncTimerService::new(EspTimerService::new()?);
+    let timer = timer_svc.timer()?;
+    drop(timer_svc);
 
-    use embedded_svc::wifi::{ClientConfiguration, Configuration};
     let mut wifi = EspWifi::new(modem, sys_loop, Some(nvs))?;
 
     log::info!("Setting Wi-Fi default configuration...");
@@ -27,7 +39,6 @@ fn main() -> anyhow::Result<()> {
     wifi.start()?;
 
     'connect: loop {
-        use embedded_svc::wifi::AccessPointInfo;
         log::info!("Starting a new round of scanning...");
 
         for AccessPointInfo { ssid, signal_strength, auth_method, .. } in wifi.scan()? {
@@ -48,17 +59,18 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    use embedded_svc::ipv4::IpInfo;
     let IpInfo { ip, subnet, .. } = wifi.ap_netif().get_ip_info()?;
     log::info!("Now connected as {ip} in subnet {subnet}.");
 
-    use esp_idf_hal::{
-        gpio::PinDriver,
-        task::executor::{EspExecutor, Local},
-    };
     let exec = EspExecutor::<16, Local>::new();
-    exec.spawn(flow::detect(PinDriver::input(flow_sensor)?))?.detach();
-    exec.run(|| true);
 
+    let flow = PinDriver::input(flow_sensor)?;
+    exec.spawn(flow::detect(flow))?.detach();
+
+    let mut faucet_button = PinDriver::input(tap_toggle)?;
+    faucet_button.set_pull(Pull::Up)?;
+    exec.spawn(button::tap_toggle(timer, faucet_button))?.detach();
+
+    exec.run(|| true);
     Ok(())
 }

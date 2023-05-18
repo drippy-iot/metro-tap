@@ -21,7 +21,7 @@ log = "0.4"
 [dependencies.embedded-svc]
 version = "0.25.0"
 default-features = false
-features = ["std", "log"]
+features = ["std", "log", "nightly"]
 
 [dependencies.esp-idf-hal]
 version = "0.41.0"

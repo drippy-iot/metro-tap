@@ -1,17 +1,23 @@
 mod button;
 mod flow;
+mod http;
+mod snapshot;
 
 use embedded_svc::{
+    http::client::asynch::{Client as HttpClient, TrivialUnblockingConnection},
     ipv4::IpInfo,
-    utils::asyncify::timer::AsyncTimerService,
+    utils::asyncify::Asyncify,
     wifi::{AccessPointInfo, ClientConfiguration, Configuration},
 };
 use esp_idf_hal::{
     gpio::{PinDriver, Pins, Pull},
     peripherals::Peripherals,
-    task::executor::{EspExecutor, Local},
+    task::executor::EspExecutor,
 };
-use esp_idf_svc::{eventloop::EspSystemEventLoop, nvs::EspDefaultNvsPartition, timer::EspTimerService, wifi::EspWifi};
+use esp_idf_svc::{
+    eventloop::EspSystemEventLoop, http::client::EspHttpConnection, nvs::EspDefaultNvsPartition,
+    timer::EspTimerService, wifi::EspWifi,
+};
 use esp_idf_sys::{self as _, EspError};
 
 fn main() -> anyhow::Result<()> {
@@ -21,13 +27,37 @@ fn main() -> anyhow::Result<()> {
 
     esp_idf_svc::log::EspLogger::initialize_default();
 
-    let Peripherals { modem, pins: Pins { gpio18: tap_pin, gpio23: flow_sensor_pin, .. }, .. } =
-        Peripherals::take().ok_or(EspError::from_infallible::<-1>())?;
+    // Get the peripherals from the board
+    let Peripherals {
+        modem,
+        pins:
+            Pins {
+                gpio18: tap_pin,
+                gpio19: metro_valve_pin,
+                gpio21: tap_valve_pin,
+                gpio22: bypass_pin,
+                gpio23: flow_sensor_pin,
+                ..
+            },
+        ..
+    } = Peripherals::take().ok_or(EspError::from_infallible::<-1>())?;
+
+    // Set up the input pins
+    let flow_sensor = PinDriver::input(flow_sensor_pin)?;
+    let mut tap = PinDriver::input(tap_pin)?;
+    tap.set_pull(Pull::Up)?;
+    let mut bypass = PinDriver::input(bypass_pin)?;
+    bypass.set_pull(Pull::Up)?;
+
+    // Set up the ouput pins
+    let metro_valve = PinDriver::output(metro_valve_pin)?;
+    let tap_valve = PinDriver::output(tap_valve_pin)?;
 
     let sys_loop = EspSystemEventLoop::take()?;
     let nvs = EspDefaultNvsPartition::take()?;
-    let mut timer_svc = AsyncTimerService::new(EspTimerService::new()?);
-    let timer = timer_svc.timer()?;
+    let mut timer_svc = EspTimerService::new()?.into_async();
+    let tap_timer = timer_svc.timer()?;
+    let snapshot_timer = timer_svc.timer()?;
     drop(timer_svc);
 
     let mut wifi = EspWifi::new(modem, sys_loop, Some(nvs))?;
@@ -40,7 +70,6 @@ fn main() -> anyhow::Result<()> {
 
     'connect: loop {
         log::info!("Starting a new round of scanning...");
-
         for AccessPointInfo { ssid, signal_strength, auth_method, .. } in wifi.scan()? {
             let Some(name) = ssid.strip_prefix("DRIPPY_") else {
                 log::warn!("Skipping {ssid} [{signal_strength}]...");
@@ -62,15 +91,15 @@ fn main() -> anyhow::Result<()> {
     let IpInfo { ip, subnet, .. } = wifi.ap_netif().get_ip_info()?;
     log::info!("Now connected as {ip} in subnet {subnet}.");
 
-    let exec = EspExecutor::<16, Local>::new();
+    let http = EspHttpConnection::new(&Default::default())?;
+    let http = TrivialUnblockingConnection::new(http);
+    let http = HttpClient::wrap(http);
 
-    let flow = PinDriver::input(flow_sensor_pin)?;
-    exec.spawn(flow::detect(flow))?.detach();
-
-    let mut faucet_button = PinDriver::input(tap_pin)?;
-    faucet_button.set_pull(Pull::Up)?;
-    exec.spawn(button::tap::toggle(timer, faucet_button))?.detach();
-
+    let exec = EspExecutor::<16, _>::new();
+    exec.spawn(flow::detect(flow_sensor))?.detach();
+    exec.spawn(button::tap::toggle(tap_timer, tap))?.detach();
+    exec.spawn_local(snapshot::tick(snapshot_timer, http))?.detach();
     exec.run(|| true);
+
     Ok(())
 }

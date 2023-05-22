@@ -1,5 +1,6 @@
 use embedded_svc::{
     http::client::asynch::{Client, TrivialUnblockingConnection},
+    io::asynch::Write as _,
     utils::io::asynch::try_read_full,
 };
 use esp_idf_svc::{errors::EspIOError, http::client::EspHttpConnection};
@@ -14,8 +15,8 @@ struct Post {
 
 async fn send_post(http: &mut HttpClient, url: &str, data: &[u8], out: &mut [u8]) -> Result<Post, EspIOError> {
     let mut req = http.post(url, &[]).await?;
-    let count = req.write(data).await?;
-    assert_eq!(count, data.len());
+    req.write_all(data).await?;
+    req.flush().await?;
 
     let mut res = req.submit().await?;
     let status = res.status();

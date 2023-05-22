@@ -1,9 +1,9 @@
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::{AtomicU16, Ordering};
 use esp_idf_hal::gpio::{GpioError, Input, Pin as GpioPin, PinDriver};
 
-static TICKS: AtomicU64 = AtomicU64::new(0);
+static TICKS: AtomicU16 = AtomicU16::new(0);
 
-pub fn take_ticks() -> u64 {
+pub fn take_ticks() -> u16 {
     log::debug!("taking the ticks to 0");
     TICKS.swap(0, Ordering::Relaxed)
 }

@@ -3,20 +3,61 @@ use embedded_svc::{
     utils::io::asynch::try_read_full,
 };
 use esp_idf_svc::{errors::EspIOError, http::client::EspHttpConnection};
-use esp_idf_sys::EspError;
+use model::report::Flow;
 
 pub type HttpClient = Client<TrivialUnblockingConnection<EspHttpConnection>>;
 
-pub async fn report_to_server(http: &mut HttpClient, buf: &mut [u8]) -> Result<usize, EspError> {
-    // TODO: remove this hard-coded value
-    let mut res = http
-        .get("http://192.168.137.1/index.html")
-        .await
-        .map_err(|EspIOError(err)| err)?
-        .submit()
-        .await
-        .map_err(|EspIOError(err)| err)?;
+struct Post {
+    count: usize,
+    status: u16,
+}
+
+async fn send_post(http: &mut HttpClient, url: &str, data: &[u8], out: &mut [u8]) -> Result<Post, EspIOError> {
+    let mut req = http.post(url, &[]).await?;
+    let count = req.write(data).await?;
+    assert_eq!(count, data.len());
+
+    let mut res = req.submit().await?;
+    let status = res.status();
     let (_, body) = res.split();
-    log::info!("connection opened to the resource");
-    try_read_full(body, buf).await.map_err(|(EspIOError(err), _)| err)
+
+    let count = try_read_full(body, out).await.map_err(|(err, _)| err)?;
+    Ok(Post { count, status })
+}
+
+pub async fn register_to_server(http: &mut HttpClient, mac: &[u8]) -> Result<bool, EspIOError> {
+    const ENDPOINT: &str = concat!(env!("BASE_URL"), "/report/register");
+    let mut buf = [];
+    let Post { count, status } = send_post(http, ENDPOINT, mac, &mut buf).await?;
+    assert_eq!(count, 0);
+    Ok(match status {
+        201 => true,
+        503 => false,
+        _ => core::unreachable!(),
+    })
+}
+
+pub async fn report_flow(http: &mut HttpClient, flow: &Flow) -> Result<bool, EspIOError> {
+    const ENDPOINT: &str = concat!(env!("BASE_URL"), "/report/flow");
+    let bytes = model::encode(flow).unwrap();
+    let mut buf = [];
+    let Post { count, status } = send_post(http, ENDPOINT, &bytes, &mut buf).await?;
+    assert_eq!(count, 0);
+    Ok(match status {
+        201 => true,
+        503 => false,
+        _ => core::unreachable!(),
+    })
+}
+
+pub async fn report_leak(http: &mut HttpClient, mac: &[u8]) -> Result<bool, EspIOError> {
+    const ENDPOINT: &str = concat!(env!("BASE_URL"), "/report/leak");
+    let mut buf = [];
+    let Post { count, status } = send_post(http, ENDPOINT, mac, &mut buf).await?;
+    assert_eq!(count, 0);
+    Ok(match status {
+        201 => true,
+        503 => false,
+        _ => core::unreachable!(),
+    })
 }

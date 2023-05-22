@@ -10,6 +10,7 @@ use esp_idf_hal::{
     task::executor::EspExecutor,
 };
 use esp_idf_svc::{
+    errors::EspIOError,
     eventloop::EspSystemEventLoop,
     http::client::EspHttpConnection,
     nvs::EspDefaultNvsPartition,
@@ -50,14 +51,18 @@ fn main() -> Result<(), EspError> {
     let conn = TrivialUnblockingConnection::new(conn);
     let http = http::HttpClient::wrap(conn);
 
-    let rt = EspExecutor::<16, _>::new();
-    rt.spawn_local_detached(async {
-        net::init(&mut wifi).await?;
-        rt.spawn_detached(flow::detect(flow)).unwrap().spawn_local_detached(snapshot::tick(timer, http)).unwrap();
+    let exec = EspExecutor::<16, _>::new();
+    exec.spawn_local_detached(async {
+        let mac = net::init(&mut wifi).await?;
+        http::register_to_server(&mut http, &mac.0).await.map_err(|EspIOError(err)| err)?;
+        exec.spawn_detached(flow::detect(flow))
+            .unwrap()
+            .spawn_local_detached(snapshot::tick(timer, http, mac))
+            .unwrap();
         Ok::<_, EspError>(())
     })
     .unwrap();
-    rt.run(|| true);
+    exec.run(|| true);
 
     Ok(())
 }

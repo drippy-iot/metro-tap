@@ -1,8 +1,11 @@
 use embedded_svc::{ipv4, wifi};
 use esp_idf_svc::wifi::{AsyncWifi, EspWifi};
 use esp_idf_sys::EspError;
+use model::MacAddress;
 
-pub async fn init(wifi: &mut AsyncWifi<EspWifi<'_>>) -> Result<(), EspError> {
+pub async fn init(wifi: &mut AsyncWifi<EspWifi<'_>>) -> Result<MacAddress, EspError> {
+    const PASSWORD: &str = env!("WIFI_PASSWORD");
+
     wifi.start().await?;
     log::info!("Wi-Fi started");
 
@@ -10,14 +13,14 @@ pub async fn init(wifi: &mut AsyncWifi<EspWifi<'_>>) -> Result<(), EspError> {
         log::info!("starting new round of scanning");
         for wifi::AccessPointInfo { ssid, signal_strength, auth_method, .. } in wifi.scan().await? {
             let Some(name) = ssid.strip_prefix("DRIPPY_") else {
-                    log::warn!("skipping {ssid} [{signal_strength}]");
-                    continue;
-                };
+                log::warn!("skipping {ssid} [{signal_strength}]");
+                continue;
+            };
             log::info!("found network {name}");
             break 'scan wifi::Configuration::Client(wifi::ClientConfiguration {
                 ssid,
                 auth_method,
-                password: "drippy-test".into(),
+                password: PASSWORD.into(),
                 ..Default::default()
             });
         }
@@ -36,5 +39,6 @@ pub async fn init(wifi: &mut AsyncWifi<EspWifi<'_>>) -> Result<(), EspError> {
         _ => log::info!("{ip} connected to {subnet} without DNS providers"),
     }
 
-    Ok(())
+    let mac = netif.get_mac()?;
+    Ok(MacAddress(mac))
 }

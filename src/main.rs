@@ -1,4 +1,4 @@
-use embedded_svc::wifi;
+use embedded_svc::{ipv4, wifi};
 use esp_idf_hal::{peripherals::Peripherals, task::executor::EspExecutor};
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
@@ -29,29 +29,35 @@ fn main() -> Result<(), EspError> {
         wifi.start().await?;
         log::info!("Wi-Fi started");
 
-        for wifi::AccessPointInfo { ssid, signal_strength, auth_method, .. } in wifi.scan().await? {
-            let Some(name) = ssid.strip_prefix("DRIPPY_") else {
-                log::warn!("skipping {ssid} [{signal_strength}]");
-                continue;
-            };
+        let config = 'scan: loop {
+            log::info!("starting new round of scanning");
+            for wifi::AccessPointInfo { ssid, signal_strength, auth_method, .. } in wifi.scan().await? {
+                let Some(name) = ssid.strip_prefix("DRIPPY_") else {
+                    log::warn!("skipping {ssid} [{signal_strength}]");
+                    continue;
+                };
+                log::info!("found network {name}");
+                break 'scan wifi::Configuration::Client(wifi::ClientConfiguration {
+                    ssid,
+                    auth_method,
+                    password: "drippy-test".into(),
+                    ..Default::default()
+                });
+            }
+        };
 
-            log::info!("connecting to {name}");
-            wifi.set_configuration(&wifi::Configuration::Client(wifi::ClientConfiguration {
-                ssid,
-                auth_method,
-                password: "drippy-test".into(),
-                ..Default::default()
-            }))?;
-            wifi.connect().await?;
-            log::info!("successfully connected to network");
+        wifi.set_configuration(&config)?;
+        wifi.connect().await?;
+        log::info!("successfully connected to network");
 
-            wifi.wait_netif_up().await?;
-            break;
-        }
-
+        wifi.wait_netif_up().await?;
         let netif = wifi.wifi().sta_netif();
-        let info = netif.get_ip_info()?;
-        log::info!("connected to interface {info:?}");
+        let ipv4::IpInfo { ip, subnet, dns, secondary_dns } = netif.get_ip_info()?;
+        match (dns, secondary_dns) {
+            (Some(a), Some(b)) => log::info!("{ip} connected to {subnet} with DNS providers {a} and {b}"),
+            (Some(dns), None) | (None, Some(dns)) => log::info!("{ip} connected to {subnet} with DNS provider {dns}"),
+            _ => log::info!("{ip} connected to {subnet} without DNS providers"),
+        }
 
         Ok::<_, EspError>(())
     })

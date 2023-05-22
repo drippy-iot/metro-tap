@@ -44,7 +44,6 @@ fn main() -> Result<(), EspError> {
     // Set up asynchronous timer
     let mut timer_svc = timer_svc.into_async();
     let timer = timer_svc.timer()?;
-    drop(timer_svc);
 
     // Set up asynchronous HTTP service
     let conn = EspHttpConnection::new(&Default::default())?;

@@ -49,7 +49,7 @@ fn main() -> Result<(), EspError> {
     // Set up asynchronous HTTP service
     let conn = EspHttpConnection::new(&Default::default())?;
     let conn = TrivialUnblockingConnection::new(conn);
-    let http = http::HttpClient::wrap(conn);
+    let mut http = http::HttpClient::wrap(conn);
 
     let exec = EspExecutor::<16, _>::new();
     exec.spawn_local_detached(async {

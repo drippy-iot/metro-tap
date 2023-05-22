@@ -8,7 +8,7 @@ pub fn take_ticks() -> u64 {
     TICKS.swap(0, Ordering::Relaxed)
 }
 
-/// Infinitely reacts to the rising edge of a pin.
+/// Infinitely reacts to the rising edge of the flow sensor.
 pub async fn detect<T: GpioPin>(mut pin: PinDriver<'_, T, Input>) -> Result<(), GpioError> {
     loop {
         // NOTE: We do not guard against integer overflow, but we do expect

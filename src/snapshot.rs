@@ -8,13 +8,14 @@ use crate::{
 };
 
 pub async fn tick(mut timer: AsyncTimer<EspTimer>, mut http: HttpClient) -> Result<(), EspError> {
+    let mut buf = [0; 512];
     loop {
         timer.after(core::time::Duration::from_secs(5))?.await;
         let ticks = take_ticks();
         log::info!("{ticks} ticks detected since last reset");
 
-        let bytes = report_to_server(&mut http).await?;
-        let html = String::from_utf8(bytes).unwrap();
-        log::info!("{html}");
+        let count = report_to_server(&mut http, &mut buf).await?;
+        let text = core::str::from_utf8(&buf[..count]).unwrap();
+        log::info!("{text}");
     }
 }

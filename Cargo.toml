@@ -15,7 +15,6 @@ debug = true
 opt-level = "z"
 
 [dependencies]
-anyhow = "1"
 log = "0.4"
 
 [dependencies.embedded-svc]
@@ -33,6 +32,11 @@ version = "0.46.0"
 [dependencies.esp-idf-sys]
 version = "0.33.0"
 features = ["binstart"]
+
+[dependencies.model]
+git = "https://github.com/drippy-iot/model.git" 
+features = ["report"]
+default-features = false
 
 [build-dependencies]
 embuild = "0.31.1"

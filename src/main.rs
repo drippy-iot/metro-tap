@@ -1,9 +1,17 @@
+mod flow;
+mod http;
 mod net;
+mod snapshot;
 
-use embedded_svc::wifi;
-use esp_idf_hal::{peripherals::Peripherals, task::executor::EspExecutor};
+use embedded_svc::{http::client::asynch::TrivialUnblockingConnection, utils::asyncify::Asyncify as _, wifi};
+use esp_idf_hal::{
+    gpio::{PinDriver, Pins},
+    peripherals::Peripherals,
+    task::executor::EspExecutor,
+};
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
+    http::client::EspHttpConnection,
     nvs::EspDefaultNvsPartition,
     timer::EspTimerService,
     wifi::{AsyncWifi, EspWifi},
@@ -17,22 +25,39 @@ fn main() -> Result<(), EspError> {
 
     esp_idf_svc::log::EspLogger::initialize_default();
 
+    let Peripherals { modem, pins: Pins { gpio19: flow_pin, .. }, .. } =
+        Peripherals::take().ok_or(EspError::from_infallible::<-1>())?;
+
+    // Set up pins and their pull modes
+    let flow = PinDriver::input(flow_pin)?;
+
+    // Initialize other services
     let sysloop = EspSystemEventLoop::take()?;
     let nvs = EspDefaultNvsPartition::take()?;
     let timer_svc = EspTimerService::new()?;
 
-    let Peripherals { modem, .. } = Peripherals::take().ok_or(EspError::from_infallible::<-1>())?;
+    // Set up Wi-Fi driver
     let wifi = EspWifi::new(modem, sysloop.clone(), Some(nvs))?;
-    let mut wifi = AsyncWifi::wrap(wifi, sysloop, timer_svc)?;
+    let mut wifi = AsyncWifi::wrap(wifi, sysloop, timer_svc.clone())?;
     wifi.set_configuration(&wifi::Configuration::Client(Default::default()))?;
 
+    // Set up asynchronous timer
+    let mut timer_svc = timer_svc.into_async();
+    let timer = timer_svc.timer()?;
+    drop(timer_svc);
+
+    // Set up asynchronous HTTP service
+    let conn = EspHttpConnection::new(&Default::default())?;
+    let conn = TrivialUnblockingConnection::new(conn);
+    let http = http::HttpClient::wrap(conn);
+
     let rt = EspExecutor::<16, _>::new();
-    rt.spawn_local(async {
+    rt.spawn_local_detached(async {
         net::init(&mut wifi).await?;
+        rt.spawn_detached(flow::detect(flow)).unwrap().spawn_local_detached(snapshot::tick(timer, http)).unwrap();
         Ok::<_, EspError>(())
     })
-    .unwrap()
-    .detach();
+    .unwrap();
     rt.run(|| true);
 
     Ok(())

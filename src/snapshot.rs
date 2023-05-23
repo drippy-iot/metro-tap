@@ -22,6 +22,10 @@ pub async fn report<Tap: Pin, Valve: Pin>(
         let flow = take_ticks();
         log::info!("{flow} ticks detected since last reset");
 
+        // TODO: In the future, we may want to piggy-back the leak detection
+        // to the regular reporting instead. Not only is it more network-efficient,
+        // but we also allow the Cloud to handle all leak-related logic.
+
         // Check if water is passing through while the tap is closed
         if tap.is_high() && flow > 100 {
             if report_leak(&mut http, &addr.0).await.map_err(|EspIOError(err)| err)? {

@@ -36,8 +36,6 @@ fn main() -> Result<(), EspError> {
         ..
     } = Peripherals::take().ok_or(EspError::from_infallible::<-1>())?;
 
-    // TODO: actuate based on `bypass`
-
     // Set up pins
     let valve = PinDriver::output(valve_pin)?;
     let mut bypass = PinDriver::input(bypass_pin)?;

@@ -1,13 +1,13 @@
 use core::time::Duration;
 use embedded_svc::utils::asyncify::timer::AsyncTimer;
-use esp_idf_hal::gpio::{Input, Output, Pin, PinDriver};
+use esp_idf_hal::gpio::{Input, Pin, PinDriver};
 use esp_idf_svc::{errors::EspIOError, timer::EspTimer};
 use esp_idf_sys::EspError;
 use model::{report::Flow, MacAddress};
 
 use crate::{
     flow::take_ticks,
-    http::{report_flow, report_leak, HttpClient},
+    http::{report_flow, report_leak, HttpClient}, SharedOutputPin,
 };
 
 pub async fn report<Tap: Pin, Valve: Pin>(
@@ -15,7 +15,7 @@ pub async fn report<Tap: Pin, Valve: Pin>(
     mut timer: AsyncTimer<EspTimer>,
     mut http: HttpClient,
     tap: PinDriver<'_, Tap, Input>,
-    mut valve: PinDriver<'_, Valve, Output>,
+    valve: SharedOutputPin<'_, Valve>,
 ) -> Result<(), EspError> {
     loop {
         timer.after(Duration::from_secs(5))?.await;
@@ -36,7 +36,7 @@ pub async fn report<Tap: Pin, Valve: Pin>(
             continue;
         }
 
-        log::warn!("remote bypass requested by the Cloud");
-        valve.set_high()?;
+        valve.lock().unwrap().set_low()?;
+        log::warn!("remote shutdown requested by the Cloud");
     }
 }

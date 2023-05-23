@@ -1,3 +1,4 @@
+mod button;
 mod flow;
 mod http;
 mod net;
@@ -5,7 +6,7 @@ mod snapshot;
 
 use embedded_svc::{http::client::asynch::TrivialUnblockingConnection, utils::asyncify::Asyncify as _, wifi};
 use esp_idf_hal::{
-    gpio::{PinDriver, Pins, Pull},
+    gpio::{Output, PinDriver, Pins, Pull},
     peripherals::Peripherals,
     task::executor::EspExecutor,
 };
@@ -18,6 +19,9 @@ use esp_idf_svc::{
     wifi::{AsyncWifi, EspWifi},
 };
 use esp_idf_sys::{self as _, EspError};
+use std::sync::{Arc, Mutex};
+
+type SharedOutputPin<'a, T> = Arc<Mutex<PinDriver<'a, T, Output>>>;
 
 fn main() -> Result<(), EspError> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -31,6 +35,8 @@ fn main() -> Result<(), EspError> {
         pins: Pins { gpio21: tap_sensor_pin, gpio22: bypass_pin, gpio23: valve_pin, gpio34: flow_sensor_pin, .. },
         ..
     } = Peripherals::take().ok_or(EspError::from_infallible::<-1>())?;
+
+    // TODO: actuate based on `bypass`
 
     // Set up pins
     let valve = PinDriver::output(valve_pin)?;
@@ -61,11 +67,16 @@ fn main() -> Result<(), EspError> {
     let conn = TrivialUnblockingConnection::new(conn);
     let mut http = http::HttpClient::wrap(conn);
 
+    // Set up shared pins
+    let valve = Arc::new(Mutex::new(valve));
+
     let exec = EspExecutor::<4, _>::new();
     exec.spawn_local_detached(async {
         let mac = net::init(&mut wifi).await?;
         http::register_to_server(&mut http, &mac.0).await.map_err(|EspIOError(err)| err)?;
         exec.spawn_detached(flow::detect(flow))
+            .unwrap()
+            .spawn_detached(button::bypass(bypass, valve.clone()))
             .unwrap()
             .spawn_local_detached(snapshot::report(mac, timer, http, tap, valve))
             .unwrap();

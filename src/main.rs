@@ -68,7 +68,7 @@ fn main() -> Result<(), EspError> {
         http::register_to_server(&mut http, &mac.0).await.map_err(|EspIOError(err)| err)?;
         exec.spawn_detached(flow::detect(flow))
             .unwrap()
-            .spawn_local_detached(snapshot::tick(timer, http, mac))
+            .spawn_local_detached(snapshot::tick(mac, timer, http, valve))
             .unwrap();
         Ok::<_, EspError>(())
     })

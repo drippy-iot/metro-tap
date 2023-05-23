@@ -28,19 +28,17 @@ fn main() -> Result<(), EspError> {
 
     let Peripherals {
         modem,
-        pins: Pins { gpio19: valve_pin, gpio21: tap_sensor_pin, gpio22: bypass_pin, gpio23: flow_sensor_pin, .. },
+        pins: Pins { gpio19: valve_pin, gpio21: tap_sensor_pin, gpio23: flow_sensor_pin, .. },
         ..
     } = Peripherals::take().ok_or(EspError::from_infallible::<-1>())?;
 
     // Set up pins
     let valve = PinDriver::output(valve_pin)?;
     let mut tap = PinDriver::input(tap_sensor_pin)?;
-    let mut bypass = PinDriver::input(bypass_pin)?;
     let mut flow = PinDriver::input(flow_sensor_pin)?;
 
     // Set up pull modes
     tap.set_pull(Pull::Up)?;
-    bypass.set_pull(Pull::Up)?;
     flow.set_pull(Pull::Up)?;
 
     // Initialize other services
@@ -68,7 +66,7 @@ fn main() -> Result<(), EspError> {
         http::register_to_server(&mut http, &mac.0).await.map_err(|EspIOError(err)| err)?;
         exec.spawn_detached(flow::detect(flow))
             .unwrap()
-            .spawn_local_detached(snapshot::tick(mac, timer, http, valve))
+            .spawn_local_detached(snapshot::report(mac, timer, http, tap, valve))
             .unwrap();
         Ok::<_, EspError>(())
     })

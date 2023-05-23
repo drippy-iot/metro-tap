@@ -9,11 +9,11 @@ pub fn take_ticks() -> u16 {
 }
 
 /// Infinitely reacts to the rising edge of the flow sensor.
-pub async fn detect<T: GpioPin>(mut pin: PinDriver<'_, T, Input>) -> Result<(), GpioError> {
+pub async fn detect<T: GpioPin>(mut flow: PinDriver<'_, T, Input>) -> Result<(), GpioError> {
     loop {
         // NOTE: We do not guard against integer overflow, but we do expect
         // the counter to be reset every now and then by the timer interrupt.
-        pin.wait_for_rising_edge().await?;
+        flow.wait_for_rising_edge().await?;
         log::debug!("flow sensor tick detected");
         TICKS.fetch_add(1, Ordering::Relaxed);
     }

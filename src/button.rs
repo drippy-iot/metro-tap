@@ -9,6 +9,6 @@ pub async fn bypass<Button: Pin, Valve: Pin>(
     loop {
         button.wait_for_rising_edge().await?;
         valve.lock().unwrap().set_high()?;
-        log::info!("manual bypass requested by the reset button");
+        log::warn!("manual bypass requested by the reset button");
     }
 }

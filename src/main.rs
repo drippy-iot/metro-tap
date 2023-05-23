@@ -34,7 +34,7 @@ fn main() -> Result<(), EspError> {
         modem,
         pins: Pins { gpio21: tap_sensor_pin, gpio22: bypass_pin, gpio23: valve_pin, gpio34: flow_sensor_pin, .. },
         ..
-    } = Peripherals::take().ok_or(EspError::from_infallible::<-1>())?;
+    } = Peripherals::take().ok_or_else(EspError::from_infallible::<-1>)?;
 
     // Set up pins
     let valve = PinDriver::output(valve_pin)?;

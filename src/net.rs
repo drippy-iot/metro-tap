@@ -4,8 +4,6 @@ use esp_idf_sys::EspError;
 use model::MacAddress;
 
 pub async fn init(wifi: &mut AsyncWifi<EspWifi<'_>>) -> Result<MacAddress, EspError> {
-    const PASSWORD: &str = env!("WIFI_PASSWORD");
-
     wifi.start().await?;
     log::info!("Wi-Fi started");
 
@@ -18,9 +16,9 @@ pub async fn init(wifi: &mut AsyncWifi<EspWifi<'_>>) -> Result<MacAddress, EspEr
             };
             log::info!("found network {name}");
             break 'scan wifi::Configuration::Client(wifi::ClientConfiguration {
+                password: name.into(),
                 ssid,
                 auth_method,
-                password: PASSWORD.into(),
                 ..Default::default()
             });
         }

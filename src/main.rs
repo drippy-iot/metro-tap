@@ -5,7 +5,7 @@ mod snapshot;
 
 use embedded_svc::{http::client::asynch::TrivialUnblockingConnection, utils::asyncify::Asyncify as _, wifi};
 use esp_idf_hal::{
-    gpio::{PinDriver, Pins},
+    gpio::{PinDriver, Pins, Pull},
     peripherals::Peripherals,
     task::executor::EspExecutor,
 };
@@ -26,11 +26,22 @@ fn main() -> Result<(), EspError> {
 
     esp_idf_svc::log::EspLogger::initialize_default();
 
-    let Peripherals { modem, pins: Pins { gpio19: flow_pin, .. }, .. } =
-        Peripherals::take().ok_or(EspError::from_infallible::<-1>())?;
+    let Peripherals {
+        modem,
+        pins: Pins { gpio19: valve_pin, gpio21: tap_sensor_pin, gpio22: bypass_pin, gpio23: flow_sensor_pin, .. },
+        ..
+    } = Peripherals::take().ok_or(EspError::from_infallible::<-1>())?;
 
-    // Set up pins and their pull modes
-    let flow = PinDriver::input(flow_pin)?;
+    // Set up pins
+    let valve = PinDriver::output(valve_pin)?;
+    let mut tap = PinDriver::input(tap_sensor_pin)?;
+    let mut bypass = PinDriver::input(bypass_pin)?;
+    let mut flow = PinDriver::input(flow_sensor_pin)?;
+
+    // Set up pull modes
+    tap.set_pull(Pull::Up)?;
+    bypass.set_pull(Pull::Up)?;
+    flow.set_pull(Pull::Up)?;
 
     // Initialize other services
     let sysloop = EspSystemEventLoop::take()?;

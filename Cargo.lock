@@ -963,7 +963,7 @@ checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 [[package]]
 name = "model"
 version = "0.1.0"
-source = "git+https://github.com/drippy-iot/model.git#904ba1dd924e009d7f9cec99ca9794e41833af52"
+source = "git+https://github.com/drippy-iot/model.git#1987fd3e5e21f73016a82d7952fa0b2ff4acbdb2"
 dependencies = [
  "bitcode",
 ]

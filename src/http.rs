@@ -14,7 +14,9 @@ struct Post {
 }
 
 async fn send_post(http: &mut HttpClient, url: &str, data: &[u8], out: &mut [u8]) -> Result<Post, EspIOError> {
-    let mut req = http.post(url, &[]).await?;
+    let len = data.len().to_string();
+    let headers = [("Content-Length", len.as_str())];
+    let mut req = http.post(url, &headers).await?;
     req.write_all(data).await?;
     req.flush().await?;
 

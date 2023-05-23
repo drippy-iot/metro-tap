@@ -62,7 +62,7 @@ fn main() -> Result<(), EspError> {
     let conn = TrivialUnblockingConnection::new(conn);
     let mut http = http::HttpClient::wrap(conn);
 
-    let exec = EspExecutor::<16, _>::new();
+    let exec = EspExecutor::<4, _>::new();
     exec.spawn_local_detached(async {
         let mac = net::init(&mut wifi).await?;
         http::register_to_server(&mut http, &mac.0).await.map_err(|EspIOError(err)| err)?;

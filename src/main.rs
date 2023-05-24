@@ -37,14 +37,15 @@ fn main() -> Result<(), EspError> {
     } = Peripherals::take().ok_or_else(EspError::from_infallible::<-1>)?;
 
     // Set up pins
-    let valve = PinDriver::output(valve_pin)?;
+    let mut valve = PinDriver::output(valve_pin)?;
     let mut bypass = PinDriver::input(bypass_pin)?;
     let mut tap = PinDriver::input(tap_sensor_pin)?;
     let flow = PinDriver::input(flow_sensor_pin)?;
 
-    // Set up pull modes
+    // Set up pull modes and default values
     bypass.set_pull(Pull::Up)?;
     tap.set_pull(Pull::Up)?;
+    valve.set_high()?; // allow the water to flow
 
     // Initialize other services
     let sysloop = EspSystemEventLoop::take()?;

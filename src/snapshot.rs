@@ -27,7 +27,7 @@ pub async fn report<Tap: Pin, Valve: Pin>(
         // but we also allow the Cloud to handle all leak-related logic.
 
         // Check if water is passing through while the tap is closed
-        if tap.is_low() && flow > 100 {
+        if tap.is_low() && flow > 10 {
             if report_leak(&mut http, &addr.0).await.map_err(|EspIOError(err)| err)? {
                 log::warn!("leak detected for the first time");
             } else {
@@ -40,7 +40,7 @@ pub async fn report<Tap: Pin, Valve: Pin>(
             continue;
         }
 
-        valve.lock().unwrap().set_high()?;
+        valve.lock().unwrap().set_low()?;
         log::warn!("remote shutdown requested by the Cloud");
     }
 }

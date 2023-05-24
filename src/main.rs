@@ -45,7 +45,9 @@ fn main() -> Result<(), EspError> {
     // Set up pull modes and default values
     bypass.set_pull(Pull::Up)?;
     tap.set_pull(Pull::Up)?;
-    valve.set_high()?; // allow the water to flow
+
+    // Allow the water to flow
+    valve.set_high()?;
 
     // Initialize other services
     let sysloop = EspSystemEventLoop::take()?;

@@ -12,7 +12,7 @@ pub async fn detect<T: Pin>(mut flow: PinDriver<'_, T, Input>) -> Result<(), Gpi
     loop {
         // NOTE: We do not guard against integer overflow, but we do expect
         // the counter to be reset every now and then by the timer interrupt.
-        flow.wait_for_rising_edge().await?;
+        flow.wait_for_falling_edge().await?;
         log::debug!("flow sensor tick detected");
         TICKS.fetch_add(1, Ordering::Relaxed);
     }

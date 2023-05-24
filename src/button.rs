@@ -7,8 +7,8 @@ pub async fn bypass<Button: Pin, Valve: Pin>(
     valve: SharedOutputPin<'_, Valve>,
 ) -> Result<(), GpioError> {
     loop {
-        button.wait_for_rising_edge().await?;
-        valve.lock().unwrap().set_high()?;
+        button.wait_for_falling_edge().await?;
+        valve.lock().unwrap().set_low()?;
         log::warn!("manual bypass requested by the reset button");
     }
 }

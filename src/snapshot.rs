@@ -30,6 +30,7 @@ pub async fn report<Tap: Pin, Valve: Pin>(
         if tap.is_low() && flow > 10 {
             if report_leak(&mut http, &addr.0).await.map_err(|EspIOError(err)| err)? {
                 log::warn!("leak detected for the first time");
+                valve.lock().unwrap().set_low()?; // Stop water flow.
             } else {
                 log::error!("leak detected multiple times");
             }
@@ -40,7 +41,7 @@ pub async fn report<Tap: Pin, Valve: Pin>(
             continue;
         }
 
-        valve.lock().unwrap().set_low()?;
+        valve.lock().unwrap().set_high()?; // We received a 503, we need to resume water flow.
         log::warn!("remote shutdown requested by the Cloud");
     }
 }

@@ -8,7 +8,7 @@ pub async fn bypass<Button: Pin, Valve: Pin>(
 ) -> Result<(), GpioError> {
     loop {
         button.wait_for_falling_edge().await?;
-        valve.lock().unwrap().set_high()?;
+        valve.lock().unwrap().set_high()?; // Manual bypass should allow water to flow.
         log::warn!("manual bypass requested by the reset button");
     }
 }

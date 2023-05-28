@@ -17,10 +17,12 @@ pub async fn report<Tap: Pin, Valve: Pin>(
     tap: PinDriver<'_, Tap, Input>,
     valve: SharedOutputPin<'_, Valve>,
 ) -> Result<(), EspError> {
+    const SECONDS: u16 = 3;
     loop {
-        timer.after(Duration::from_secs(3))?.await;
+        timer.after(Duration::from_secs(SECONDS.into()))?.await;
         let flow = take_ticks();
-        log::info!("{flow} ticks detected since last reset");
+        let unit = flow / SECONDS;
+        log::info!("{flow} total ticks (i.e., {unit} ticks per second) detected since last reset");
 
         // TODO: In the future, we may want to piggy-back the leak detection
         // to the regular reporting instead. Not only is it more network-efficient,
@@ -36,7 +38,8 @@ pub async fn report<Tap: Pin, Valve: Pin>(
             }
         }
 
-        if report_flow(&mut http, &Flow { addr, flow }).await.map_err(|EspIOError(err)| err)? {
+        // NOTE: We send the normalized number of ticks (i.e., ticks per second) to the Cloud.
+        if report_flow(&mut http, &Flow { addr, flow: unit }).await.map_err(|EspIOError(err)| err)? {
             log::info!("no shutdown request from the service after reporting ticks");
             continue;
         }

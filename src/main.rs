@@ -32,7 +32,15 @@ fn main() -> Result<(), EspError> {
 
     let Peripherals {
         modem,
-        pins: Pins { gpio21: tap_sensor_pin, gpio22: bypass_pin, gpio23: valve_pin, gpio34: flow_sensor_pin, .. },
+        pins: Pins { 
+            gpio21: tap_sensor_pin, 
+            gpio22: bypass_pin, 
+            gpio23: valve_pin, 
+            gpio34: flow_sensor_pin, 
+            gpio33: tap_led,  
+            gpio32: flow_led,
+            .. 
+        },
         ..
     } = Peripherals::take().ok_or_else(EspError::from_infallible::<-1>)?;
 

@@ -54,7 +54,6 @@ fn main() -> Result<(), EspError> {
 
     // Set up pull modes and default values
     bypass.set_pull(Pull::Up)?;
-    tap.set_pull(Pull::Up)?;
 
     // Allow the water to flow
     valve.set_high()?;

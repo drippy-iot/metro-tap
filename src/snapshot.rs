@@ -10,12 +10,14 @@ use crate::{
     http::{report_flow, report_leak, HttpClient}, SharedOutputPin,
 };
 
-pub async fn report<Tap: Pin, Valve: Pin>(
+pub async fn report<Tap: Pin, Valve: Pin, TapLED: Pin, ValveLED: Pin>(
     addr: MacAddress,
     mut timer: AsyncTimer<EspTimer>,
     mut http: HttpClient,
     tap: PinDriver<'_, Tap, Input>,
+    tap_led: PinDriver<'_, TapLED, Output>,
     valve: SharedOutputPin<'_, Valve>,
+    valve_led: SharedOutputPin<'_, ValveLED>,
 ) -> Result<(), EspError> {
     const SECONDS: u16 = 3;
     loop {
@@ -29,13 +31,19 @@ pub async fn report<Tap: Pin, Valve: Pin>(
         // but we also allow the Cloud to handle all leak-related logic.
 
         // Check if water is passing through while the tap is closed
-        if tap.is_low() && flow > 10 {
-            if report_leak(&mut http, &addr.0).await.map_err(|EspIOError(err)| err)? {
-                log::warn!("leak detected for the first time");
-                valve.lock().unwrap().set_low()?; // Stop water flow.
-            } else {
-                log::error!("leak detected multiple times");
+        if tap.is_high() {
+            tap_led.set_high()?;
+            if flow > 10 {
+                if report_leak(&mut http, &addr.0).await.map_err(|EspIOError(err)| err)? {
+                    log::warn!("leak detected for the first time");
+                    valve.lock().unwrap().set_low()?; // Stop water flow.
+                    valve_led.lock().unwrap().set_high()?; // Turn on the alarm LED.
+                } else {
+                    log::error!("leak detected multiple times");
+                }
             }
+        } else {
+            tap_led.set_low()?;
         }
 
         // NOTE: We send the normalized number of ticks (i.e., ticks per second) to the Cloud.
@@ -45,6 +53,7 @@ pub async fn report<Tap: Pin, Valve: Pin>(
         }
 
         valve.lock().unwrap().set_high()?; // We received a 503, we need to resume water flow.
+        valve_led.lock().unwrap().set_low()?; // Turn off the alarm LED.
         log::warn!("remote shutdown requested by the Cloud");
     }
 }

@@ -87,9 +87,9 @@ fn main() -> Result<(), EspError> {
         http::register_to_server(&mut http, &mac.0).await.map_err(|EspIOError(err)| err)?;
         exec.spawn_detached(flow::detect(flow))
             .unwrap()
-            .spawn_detached(button::bypass(bypass, valve.clone()))
+            .spawn_detached(button::bypass(bypass, valve.clone(), valve_led.clone()))
             .unwrap()
-            .spawn_local_detached(snapshot::report(mac, timer, http, tap, valve))
+            .spawn_local_detached(snapshot::report(mac, timer, http, tap, tap_led, valve, valve_led))
             .unwrap();
         Ok::<_, EspError>(())
     })

@@ -37,8 +37,8 @@ fn main() -> Result<(), EspError> {
             gpio22: bypass_pin, 
             gpio23: valve_pin, 
             gpio34: flow_sensor_pin, 
-            gpio33: tap_led,  
-            gpio32: flow_led,
+            gpio33: tap_led_pin,  
+            gpio32: flow_led_pin,
             .. 
         },
         ..
@@ -48,6 +48,8 @@ fn main() -> Result<(), EspError> {
     let mut valve = PinDriver::output(valve_pin)?;
     let mut bypass = PinDriver::input(bypass_pin)?;
     let mut tap = PinDriver::input(tap_sensor_pin)?;
+    let mut tap_led = PinDriver::output(tap_led_pin)?;
+    let mut flow_led = PinDriver::output(flow_led_pin)?;
     let flow = PinDriver::input(flow_sensor_pin)?;
 
     // Set up pull modes and default values

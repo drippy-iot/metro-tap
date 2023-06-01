@@ -49,7 +49,7 @@ fn main() -> Result<(), EspError> {
     let mut bypass = PinDriver::input(bypass_pin)?;
     let mut tap = PinDriver::input(tap_sensor_pin)?;
     let mut tap_led = PinDriver::output(tap_led_pin)?;
-    let mut flow_led = PinDriver::output(flow_led_pin)?;
+    let mut valve_led = PinDriver::output(flow_led_pin)?;
     let flow = PinDriver::input(flow_sensor_pin)?;
 
     // Set up pull modes and default values
@@ -80,6 +80,7 @@ fn main() -> Result<(), EspError> {
 
     // Set up shared pins
     let valve = Arc::new(Mutex::new(valve));
+    let valve_led = Arc::new(Mutex::new(valve_led));
 
     let exec = EspExecutor::<4, _>::new();
     exec.spawn_local_detached(async {

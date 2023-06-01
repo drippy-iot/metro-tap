@@ -57,6 +57,7 @@ fn main() -> Result<(), EspError> {
 
     // Allow the water to flow
     valve.set_high()?;
+    valve_led.set_low()?;
 
     // Initialize other services
     let sysloop = EspSystemEventLoop::take()?;

@@ -1,6 +1,6 @@
 use core::time::Duration;
 use embedded_svc::utils::asyncify::timer::AsyncTimer;
-use esp_idf_hal::gpio::{Input, Pin, PinDriver};
+use esp_idf_hal::gpio::{Input, Output, Pin, PinDriver};
 use esp_idf_svc::{errors::EspIOError, timer::EspTimer};
 use esp_idf_sys::EspError;
 use model::{report::Flow, MacAddress};
@@ -15,7 +15,7 @@ pub async fn report<Tap: Pin, Valve: Pin, TapLED: Pin, ValveLED: Pin>(
     mut timer: AsyncTimer<EspTimer>,
     mut http: HttpClient,
     tap: PinDriver<'_, Tap, Input>,
-    tap_led: PinDriver<'_, TapLED, Output>,
+    mut tap_led: PinDriver<'_, TapLED, Output>,
     valve: SharedOutputPin<'_, Valve>,
     valve_led: SharedOutputPin<'_, ValveLED>,
 ) -> Result<(), EspError> {

@@ -66,7 +66,11 @@ fn main() -> Result<(), EspError> {
     // Set up asynchronous HTTP service
     let conn = EspHttpConnection::new(&Default::default())?;
     let conn = TrivialUnblockingConnection::new(conn);
-    let mut http = http::HttpClient::wrap(conn);
+    let http_reset = http::HttpClient::wrap(conn);
+
+    let conn = EspHttpConnection::new(&Default::default())?;
+    let conn = TrivialUnblockingConnection::new(conn);
+    let mut http_snapshot = http::HttpClient::wrap(conn);
 
     // Set up shared pins
     let valve = Arc::new(Mutex::new(valve));
@@ -74,12 +78,12 @@ fn main() -> Result<(), EspError> {
     let exec = EspExecutor::<4, _>::new();
     exec.spawn_local_detached(async {
         let mac = net::init(&mut wifi).await?;
-        http::register_to_server(&mut http, &mac.0).await.map_err(|EspIOError(err)| err)?;
+        http::register_to_server(&mut http_snapshot, &mac.0).await.map_err(|EspIOError(err)| err)?;
         exec.spawn_detached(flow::detect(flow))
             .unwrap()
-            .spawn_detached(button::bypass(bypass, valve.clone()))
+            .spawn_local_detached(button::bypass(mac, http_reset, bypass, valve.clone()))
             .unwrap()
-            .spawn_local_detached(snapshot::report(mac, timer, http, tap, valve))
+            .spawn_local_detached(snapshot::report(mac, timer, http_snapshot, tap, valve))
             .unwrap();
         Ok::<_, EspError>(())
     })

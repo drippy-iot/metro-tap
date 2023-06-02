@@ -7,7 +7,8 @@ use model::{report::Flow, MacAddress};
 
 use crate::{
     flow::take_ticks,
-    http::{report_flow, report_leak, HttpClient}, SharedOutputPin,
+    http::{report_flow, report_leak, HttpClient},
+    SharedOutputPin,
 };
 
 pub async fn report<Tap: Pin, Valve: Pin>(
@@ -31,8 +32,8 @@ pub async fn report<Tap: Pin, Valve: Pin>(
         // Check if water is passing through while the tap is closed
         if tap.is_low() && flow > 10 {
             if report_leak(&mut http, &addr.0).await.map_err(|EspIOError(err)| err)? {
-                log::warn!("leak detected for the first time");
                 valve.lock().unwrap().set_low()?; // Stop water flow.
+                log::warn!("leak detected for the first time");
             } else {
                 log::error!("leak detected multiple times");
             }
@@ -41,10 +42,11 @@ pub async fn report<Tap: Pin, Valve: Pin>(
         // NOTE: We send the normalized number of ticks (i.e., ticks per second) to the Cloud.
         if report_flow(&mut http, &Flow { addr, flow: unit }).await.map_err(|EspIOError(err)| err)? {
             log::info!("no shutdown request from the service after reporting ticks");
-            continue;
+        } else {
+            // We received a 503, we need to resume water flow.
+            valve.lock().unwrap().set_high()?;
+            log::warn!("remote shutdown requested by the Cloud");
         }
 
-        valve.lock().unwrap().set_high()?; // We received a 503, we need to resume water flow.
-        log::warn!("remote shutdown requested by the Cloud");
     }
 }

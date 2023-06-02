@@ -31,8 +31,8 @@ pub async fn report<Tap: Pin, Valve: Pin, TapLED: Pin, ValveLED: Pin>(
         // but we also allow the Cloud to handle all leak-related logic.
 
         // Check if water is passing through while the tap is closed
-        if tap.is_high() {
-            tap_led.set_high()?;
+        if tap.is_low() {
+            tap_led.set_low()?;
             if flow > 10 {
                 if report_leak(&mut http, &addr.0).await.map_err(|EspIOError(err)| err)? {
                     log::warn!("leak detected for the first time");
@@ -43,7 +43,7 @@ pub async fn report<Tap: Pin, Valve: Pin, TapLED: Pin, ValveLED: Pin>(
                 }
             }
         } else {
-            tap_led.set_low()?;
+            tap_led.set_high()?;
         }
 
         // NOTE: We send the normalized number of ticks (i.e., ticks per second) to the Cloud.

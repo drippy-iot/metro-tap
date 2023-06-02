@@ -64,3 +64,15 @@ pub async fn report_leak(http: &mut HttpClient, mac: &[u8]) -> Result<bool, EspI
         _ => core::unreachable!(),
     })
 }
+
+pub async fn report_reset(http: &mut HttpClient, mac: &[u8]) -> Result<bool, EspIOError> {
+    const ENDPOINT: &str = concat!(env!("BASE_URL"), "/report/reset");
+    let mut buf = [];
+    let Post { count, status } = send_post(http, ENDPOINT, mac, &mut buf).await?;
+    assert_eq!(count, 0);
+    Ok(match status {
+        201 => true,
+        503 => false,
+        _ => core::unreachable!(),
+    })
+}

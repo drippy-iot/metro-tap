@@ -10,14 +10,14 @@ use crate::{
     http::{report_flow, report_leak, HttpClient}, SharedOutputPin,
 };
 
-pub async fn report<Tap: Pin, Valve: Pin, TapLED: Pin, ValveLED: Pin>(
+pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
     addr: MacAddress,
     mut timer: AsyncTimer<EspTimer>,
     mut http: HttpClient,
     tap: PinDriver<'_, Tap, Input>,
-    mut tap_led: PinDriver<'_, TapLED, Output>,
+    mut tap_led: PinDriver<'_, TapLed, Output>,
     valve: SharedOutputPin<'_, Valve>,
-    valve_led: SharedOutputPin<'_, ValveLED>,
+    valve_led: SharedOutputPin<'_, ValveLed>,
 ) -> Result<(), EspError> {
     const SECONDS: u16 = 3;
     loop {

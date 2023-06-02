@@ -16,10 +16,11 @@ pub async fn bypass<Button: Pin, Valve: Pin>(
     loop {
         button.wait_for_falling_edge().await?;
         if report_reset(&mut http, &mac.0).await.map_err(|EspIOError(err)| err)? {
-            valve.lock().unwrap().set_high()?; // Manual bypass should allow water to flow.
+            // Manual bypass should allow water to flow.
+            valve.lock().unwrap().set_high()?;
             log::info!("successfully reported a manual bypass to the cloud");
         } else {
-            log::warn!("bypass requested when valve is already closed to begin with");
+            log::warn!("bypass requested when valve is already open to begin with");
         }
     }
 }

@@ -1,21 +1,24 @@
 use core::time::Duration;
 use embedded_svc::utils::asyncify::timer::AsyncTimer;
-use esp_idf_hal::gpio::{Input, Pin, PinDriver};
+use esp_idf_hal::gpio::{Input, Output, Pin, PinDriver};
 use esp_idf_svc::{errors::EspIOError, timer::EspTimer};
 use esp_idf_sys::EspError;
 use model::{report::Flow, MacAddress};
+use std::sync::{Arc, Mutex};
 
 use crate::{
     flow::take_ticks,
-    http::{report_flow, report_leak, HttpClient}, SharedOutputPin,
+    http::{report_flow, report_leak, HttpClient},
+    valve::ValveSystem,
 };
 
-pub async fn report<Tap: Pin, Valve: Pin>(
+pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
     addr: MacAddress,
     mut timer: AsyncTimer<EspTimer>,
     mut http: HttpClient,
     tap: PinDriver<'_, Tap, Input>,
-    valve: SharedOutputPin<'_, Valve>,
+    mut tap_led: PinDriver<'_, TapLed, Output>,
+    valve: Arc<Mutex<ValveSystem<'_, Valve, ValveLed>>>,
 ) -> Result<(), EspError> {
     const SECONDS: u16 = 3;
     loop {
@@ -29,22 +32,26 @@ pub async fn report<Tap: Pin, Valve: Pin>(
         // but we also allow the Cloud to handle all leak-related logic.
 
         // Check if water is passing through while the tap is closed
-        if tap.is_low() && flow > 10 {
-            if report_leak(&mut http, &addr.0).await.map_err(|EspIOError(err)| err)? {
-                log::warn!("leak detected for the first time");
-                valve.lock().unwrap().set_low()?; // Stop water flow.
-            } else {
-                log::error!("leak detected multiple times");
+        if tap.is_low() {
+            tap_led.set_low()?;
+            if flow > 10 {
+                if report_leak(&mut http, &addr.0).await.map_err(|EspIOError(err)| err)? {
+                    valve.lock().unwrap().stop_flow()?;
+                    log::warn!("leak detected for the first time");
+                } else {
+                    log::error!("leak detected multiple times");
+                }
             }
+        } else {
+            tap_led.set_high()?;
         }
 
         // NOTE: We send the normalized number of ticks (i.e., ticks per second) to the Cloud.
         if report_flow(&mut http, &Flow { addr, flow: unit }).await.map_err(|EspIOError(err)| err)? {
             log::info!("no shutdown request from the service after reporting ticks");
-            continue;
+        } else {
+            valve.lock().unwrap().start_flow()?;
+            log::warn!("remote shutdown requested by the Cloud");
         }
-
-        valve.lock().unwrap().set_high()?; // We received a 503, we need to resume water flow.
-        log::warn!("remote shutdown requested by the Cloud");
     }
 }

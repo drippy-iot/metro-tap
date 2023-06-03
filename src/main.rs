@@ -3,10 +3,11 @@ mod flow;
 mod http;
 mod net;
 mod snapshot;
+mod valve;
 
 use embedded_svc::{http::client::asynch::TrivialUnblockingConnection, utils::asyncify::Asyncify as _, wifi};
 use esp_idf_hal::{
-    gpio::{Output, PinDriver, Pins, Pull},
+    gpio::{PinDriver, Pins, Pull},
     peripherals::Peripherals,
     task::executor::EspExecutor,
 };
@@ -21,8 +22,6 @@ use esp_idf_svc::{
 use esp_idf_sys::{self as _, EspError};
 use std::sync::{Arc, Mutex};
 
-type SharedOutputPin<'a, T> = Arc<Mutex<PinDriver<'a, T, Output>>>;
-
 fn main() -> Result<(), EspError> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
@@ -32,22 +31,33 @@ fn main() -> Result<(), EspError> {
 
     let Peripherals {
         modem,
-        pins: Pins { gpio21: tap_sensor_pin, gpio22: bypass_pin, gpio23: valve_pin, gpio34: flow_sensor_pin, .. },
+        pins:
+            Pins {
+                gpio21: tap_sensor_pin,
+                gpio22: bypass_pin,
+                gpio23: valve_pin,
+                gpio34: flow_sensor_pin,
+                gpio33: tap_led_pin,
+                gpio32: valve_led_pin,
+                ..
+            },
         ..
     } = Peripherals::take().ok_or_else(EspError::from_infallible::<-1>)?;
 
     // Set up pins
-    let mut valve = PinDriver::output(valve_pin)?;
+    let valve = PinDriver::output(valve_pin)?;
     let mut bypass = PinDriver::input(bypass_pin)?;
-    let mut tap = PinDriver::input(tap_sensor_pin)?;
+    let tap = PinDriver::input(tap_sensor_pin)?;
+    let tap_led = PinDriver::output(tap_led_pin)?;
+    let valve_led = PinDriver::output(valve_led_pin)?;
     let flow = PinDriver::input(flow_sensor_pin)?;
 
     // Set up pull modes and default values
     bypass.set_pull(Pull::Up)?;
-    tap.set_pull(Pull::Up)?;
 
     // Allow the water to flow
-    valve.set_high()?;
+    let mut valve = valve::ValveSystem { control: valve, led: valve_led };
+    valve.start_flow()?;
 
     // Initialize other services
     let sysloop = EspSystemEventLoop::take()?;
@@ -79,7 +89,7 @@ fn main() -> Result<(), EspError> {
             .unwrap()
             .spawn_detached(button::bypass(bypass, valve.clone()))
             .unwrap()
-            .spawn_local_detached(snapshot::report(mac, timer, http, tap, valve))
+            .spawn_local_detached(snapshot::report(mac, timer, http, tap, tap_led, valve))
             .unwrap();
         Ok::<_, EspError>(())
     })

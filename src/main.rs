@@ -1,4 +1,3 @@
-mod button;
 mod flow;
 mod http;
 mod net;
@@ -7,7 +6,7 @@ mod valve;
 
 use embedded_svc::{http::client::asynch::TrivialUnblockingConnection, utils::asyncify::Asyncify as _, wifi};
 use esp_idf_hal::{
-    gpio::{PinDriver, Pins, Pull},
+    gpio::{PinDriver, Pins},
     peripherals::Peripherals,
     task::executor::EspExecutor,
 };
@@ -20,7 +19,6 @@ use esp_idf_svc::{
     wifi::{AsyncWifi, EspWifi},
 };
 use esp_idf_sys::{self as _, EspError};
-use std::sync::{Arc, Mutex};
 
 fn main() -> Result<(), EspError> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -29,12 +27,12 @@ fn main() -> Result<(), EspError> {
 
     esp_idf_svc::log::EspLogger::initialize_default();
 
+    // NOTE: GPIO 22 used to be the manual bypass button in the hardware (for debugging).
     let Peripherals {
         modem,
         pins:
             Pins {
                 gpio21: tap_sensor_pin,
-                gpio22: bypass_pin,
                 gpio23: valve_pin,
                 gpio34: flow_sensor_pin,
                 gpio33: tap_led_pin,
@@ -46,14 +44,10 @@ fn main() -> Result<(), EspError> {
 
     // Set up pins
     let valve = PinDriver::output(valve_pin)?;
-    let mut bypass = PinDriver::input(bypass_pin)?;
     let tap = PinDriver::input(tap_sensor_pin)?;
     let tap_led = PinDriver::output(tap_led_pin)?;
     let valve_led = PinDriver::output(valve_led_pin)?;
     let flow = PinDriver::input(flow_sensor_pin)?;
-
-    // Set up pull modes and default values
-    bypass.set_pull(Pull::Up)?;
 
     // Allow the water to flow
     let mut valve = valve::ValveSystem { control: valve, led: valve_led };
@@ -78,16 +72,11 @@ fn main() -> Result<(), EspError> {
     let conn = TrivialUnblockingConnection::new(conn);
     let mut http = http::HttpClient::wrap(conn);
 
-    // Set up shared pins
-    let valve = Arc::new(Mutex::new(valve));
-
     let exec = EspExecutor::<4, _>::new();
     exec.spawn_local_detached(async {
         let mac = net::init(&mut wifi).await?;
         http::register_to_server(&mut http, &mac.0).await.map_err(|EspIOError(err)| err)?;
         exec.spawn_detached(flow::detect(flow))
-            .unwrap()
-            .spawn_detached(button::bypass(bypass, valve.clone()))
             .unwrap()
             .spawn_local_detached(snapshot::report(mac, timer, http, tap, tap_led, valve))
             .unwrap();

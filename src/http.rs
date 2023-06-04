@@ -4,7 +4,7 @@ use embedded_svc::{
     utils::io::asynch::try_read_full,
 };
 use esp_idf_svc::{errors::EspIOError, http::client::EspHttpConnection};
-use model::report::Flow;
+use model::report::Ping;
 
 pub type HttpClient = Client<TrivialUnblockingConnection<EspHttpConnection>>;
 
@@ -40,23 +40,11 @@ pub async fn register_to_server(http: &mut HttpClient, mac: &[u8]) -> Result<boo
     })
 }
 
-pub async fn report_flow(http: &mut HttpClient, flow: &Flow) -> Result<bool, EspIOError> {
-    const ENDPOINT: &str = concat!(env!("BASE_URL"), "/report/flow");
-    let bytes = model::encode(flow).unwrap();
+pub async fn ping(http: &mut HttpClient, ping: &Ping) -> Result<bool, EspIOError> {
+    const ENDPOINT: &str = concat!(env!("BASE_URL"), "/report/ping");
+    let bytes = model::encode(ping).unwrap();
     let mut buf = [];
     let Post { count, status } = send_post(http, ENDPOINT, &bytes, &mut buf).await?;
-    assert_eq!(count, 0);
-    Ok(match status {
-        201 => true,
-        503 => false,
-        _ => core::unreachable!(),
-    })
-}
-
-pub async fn report_leak(http: &mut HttpClient, mac: &[u8]) -> Result<bool, EspIOError> {
-    const ENDPOINT: &str = concat!(env!("BASE_URL"), "/report/leak");
-    let mut buf = [];
-    let Post { count, status } = send_post(http, ENDPOINT, mac, &mut buf).await?;
     assert_eq!(count, 0);
     Ok(match status {
         201 => true,

@@ -7,7 +7,7 @@ use model::{report::Ping, MacAddress};
 
 use crate::{
     flow::take_ticks,
-    http::{ping, HttpClient},
+    http::{ping, Command, HttpClient},
     valve::ValveSystem,
 };
 
@@ -43,11 +43,16 @@ pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
         };
 
         // NOTE: We send the normalized number of ticks (i.e., ticks per second) to the Cloud.
-        if ping(&mut http, &Ping { addr, leak, flow: unit }).await.map_err(|EspIOError(err)| err)? {
-            log::info!("no bypass request from the server");
-        } else {
-            valve.start_flow()?;
-            log::warn!("remote shutdown requested by the Cloud");
+        match ping(&mut http, &Ping { addr, leak, flow: unit }).await.map_err(|EspIOError(err)| err)? {
+            Command::None => log::info!("no command issued from the server"),
+            Command::Open => {
+                valve.start_flow()?;
+                log::warn!("server issued a remote bypass");
+            }
+            Command::Close => {
+                valve.stop_flow()?;
+                log::warn!("server issued a remote shutdown");
+            }
         }
     }
 }

@@ -1,9 +1,13 @@
-use core::time::Duration;
+use core::{
+    sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
+};
 use embedded_svc::utils::asyncify::timer::AsyncTimer;
 use esp_idf_hal::gpio::{Input, Output, Pin, PinDriver};
 use esp_idf_svc::{errors::EspIOError, timer::EspTimer};
 use esp_idf_sys::EspError;
 use model::{report::Ping, MacAddress};
+use std::sync::{Arc, Mutex};
 
 use crate::{
     flow::take_ticks,
@@ -14,7 +18,8 @@ use crate::{
 pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
     addr: MacAddress,
     mut timer: AsyncTimer<EspTimer>,
-    mut http: HttpClient,
+    http: Arc<Mutex<HttpClient>>,
+    should_bypass: Arc<AtomicBool>,
     tap: PinDriver<'_, Tap, Input>,
     mut tap_led: PinDriver<'_, TapLed, Output>,
     mut valve: ValveSystem<'_, Valve, ValveLed>,
@@ -43,9 +48,14 @@ pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
         };
 
         // NOTE: We send the normalized number of ticks (i.e., ticks per second) to the Cloud.
-        match ping(&mut http, &Ping { addr, leak, flow: unit }).await.map_err(|EspIOError(err)| err)? {
+        let mut guard = http.lock().unwrap();
+        let command = ping(&mut guard, &Ping { addr, leak, flow: unit }).await.map_err(|EspIOError(err)| err)?;
+        drop(guard);
+
+        match command {
             Command::None => log::info!("no command issued from the server"),
             Command::Open => {
+                should_bypass.store(true, Ordering::Relaxed);
                 valve.start_flow()?;
                 log::warn!("server issued a remote bypass");
             }

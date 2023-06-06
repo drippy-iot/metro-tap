@@ -35,7 +35,6 @@ pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
         let leak = if tap.is_low() {
             tap_led.set_low()?;
             if flow > 10 {
-                // TODO: Block actuation if we're in bypass mode.
                 if should_bypass.load(Ordering::Relaxed) {
                     valve.start_flow()?;
                     log::warn!("leak detected but bypassed");

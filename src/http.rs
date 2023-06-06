@@ -65,10 +65,10 @@ pub async fn ping(http: &mut HttpClient, ping: &Ping) -> Result<Command, EspIOEr
     })
 }
 
-pub async fn bypass(http: &mut HttpClient) -> Result<(), EspIOError> {
+pub async fn bypass(http: &mut HttpClient, mac: &[u8]) -> Result<(), EspIOError> {
     const ENDPOINT: &str = concat!(env!("BASE_URL"), "/report/bypass");
     let mut buf = [];
-    let Post { count, status } = send_post(http, ENDPOINT, &[], &mut buf).await?;
+    let Post { count, status } = send_post(http, ENDPOINT, mac, &mut buf).await?;
     assert_eq!(count, 0);
     assert_eq!(status, 201);
     Ok(())

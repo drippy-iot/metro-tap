@@ -112,7 +112,7 @@ fn main() -> Result<(), EspError> {
         let http = Arc::new(Mutex::new(http));
         exec.spawn_detached(flow::detect(flow))
             .unwrap()
-            .spawn_local_detached(button::deactivate_bypass_mode(http.clone(), bypass.clone(), bypass_button))
+            .spawn_local_detached(button::deactivate_bypass_mode(mac, http.clone(), bypass.clone(), bypass_button))
             .unwrap()
             .spawn_local_detached(snapshot::report(mac, timer, http, bypass, tap, tap_led, valve))
             .unwrap();

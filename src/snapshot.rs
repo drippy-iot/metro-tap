@@ -1,12 +1,12 @@
-use core::{
-    sync::atomic::{AtomicBool, Ordering},
-    time::Duration,
-};
+use core::sync::atomic::{AtomicBool, Ordering};
 use embedded_svc::utils::asyncify::timer::AsyncTimer;
 use esp_idf_hal::gpio::{Input, Output, Pin, PinDriver};
 use esp_idf_svc::{errors::EspIOError, timer::EspTimer};
 use esp_idf_sys::EspError;
-use model::{report::Ping, MacAddress};
+use model::{
+    report::{Ping, POLL_QUANTUM},
+    MacAddress,
+};
 use std::sync::{Arc, Mutex};
 
 use crate::{
@@ -24,11 +24,10 @@ pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
     mut tap_led: PinDriver<'_, TapLed, Output>,
     mut valve: ValveSystem<'_, Valve, ValveLed>,
 ) -> Result<(), EspError> {
-    const SECONDS: u16 = 3;
     loop {
-        timer.after(Duration::from_secs(SECONDS.into()))?.await;
+        timer.after(POLL_QUANTUM)?.await;
         let flow = take_ticks();
-        let unit = flow / SECONDS;
+        let unit = u64::from(flow) / POLL_QUANTUM.as_secs();
         log::info!("{flow} total ticks (i.e., {unit} ticks per second) detected since last reset");
 
         // Check if water is passing through while the tap is closed
@@ -53,7 +52,9 @@ pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
 
         // NOTE: We send the normalized number of ticks (i.e., ticks per second) to the Cloud.
         let mut guard = http.lock().unwrap();
-        let command = ping(&mut guard, &Ping { addr, leak, flow: unit }).await.map_err(|EspIOError(err)| err)?;
+        let command = ping(&mut guard, &Ping { addr, leak, flow: unit.try_into().unwrap() })
+            .await
+            .map_err(|EspIOError(err)| err)?;
         drop(guard);
 
         match command {

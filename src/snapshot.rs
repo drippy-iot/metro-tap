@@ -24,6 +24,7 @@ pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
     mut tap_led: PinDriver<'_, TapLed, Output>,
     mut valve: ValveSystem<'_, Valve, ValveLed>,
 ) -> Result<(), EspError> {
+    let mut allowance = 0u8;
     loop {
         timer.after(POLL_QUANTUM)?.await;
         let flow = take_ticks();
@@ -31,22 +32,33 @@ pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
         log::info!("{flow} total ticks (i.e., {unit} ticks per second) detected since last reset");
 
         // Check if water is passing through while the tap is closed
-        let leak = if tap.is_low() {
-            tap_led.set_low()?;
-            if flow > 10 {
-                if should_bypass.load(Ordering::Relaxed) {
-                    valve.start_flow()?;
-                    log::warn!("leak detected but bypassed");
-                } else {
-                    valve.stop_flow()?;
-                    log::info!("leak detected and valve actuated");
-                }
-                true
-            } else {
-                false
+        let leak = 'detect: {
+            if tap.is_high() {
+                tap_led.set_high()?;
+                allowance = 0;
+                break 'detect false;
             }
-        } else {
-            tap_led.set_high()?;
+
+            tap_led.set_low()?;
+            if flow <= 10 {
+                break 'detect false;
+            }
+
+            if should_bypass.load(Ordering::Relaxed) {
+                valve.start_flow()?;
+                log::warn!("leak detected but bypassed");
+                break 'detect true;
+            }
+
+            // NOTE: Threshold of 1 is technically just a `bool`.
+            allowance += 1;
+            if allowance <= 1 {
+                log::warn!("leak detected, within allowance");
+                break 'detect false;
+            }
+
+            valve.stop_flow()?;
+            log::warn!("leak detected and valve actuated");
             false
         };
 
@@ -62,10 +74,12 @@ pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
             Command::Open => {
                 should_bypass.store(true, Ordering::Relaxed);
                 valve.start_flow()?;
+                allowance = 0;
                 log::warn!("server issued a remote bypass");
             }
             Command::Close => {
                 valve.stop_flow()?;
+                allowance = 0;
                 log::warn!("server issued a remote shutdown");
             }
         }

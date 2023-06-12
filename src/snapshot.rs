@@ -1,4 +1,4 @@
-use core::sync::atomic::{AtomicBool, Ordering, AtomicU8};
+use core::sync::atomic::{AtomicBool, Ordering};
 use embedded_svc::utils::asyncify::timer::AsyncTimer;
 use esp_idf_hal::gpio::{Input, Output, Pin, PinDriver};
 use esp_idf_svc::{errors::EspIOError, timer::EspTimer};
@@ -15,8 +15,6 @@ use crate::{
     valve::ValveSystem,
 };
 
-static ALLOWANCE: AtomicU8 = AtomicU8::new(0);
-
 pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
     addr: MacAddress,
     mut timer: AsyncTimer<EspTimer>,
@@ -26,6 +24,7 @@ pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
     mut tap_led: PinDriver<'_, TapLed, Output>,
     mut valve: ValveSystem<'_, Valve, ValveLed>,
 ) -> Result<(), EspError> {
+    let mut allowance = 0u8;
     loop {
         timer.after(POLL_QUANTUM)?.await;
         let flow = take_ticks();
@@ -33,29 +32,33 @@ pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
         log::info!("{flow} total ticks (i.e., {unit} ticks per second) detected since last reset");
 
         // Check if water is passing through while the tap is closed
-        let leak = if tap.is_low() {
-            tap_led.set_low()?;
-            if flow > 10 {
-                if should_bypass.load(Ordering::Relaxed) {
-                    valve.start_flow()?;
-                    log::warn!("leak detected but bypassed");
-                    true
-                } else {
-                    if ALLOWANCE.fetch_add(1, Ordering::Relaxed) > 0 {
-                        valve.stop_flow()?;
-                        log::warn!("leak detected and valve actuated");
-                        true
-                    } else {
-                        log::warn!("leak detected, within allowance");
-                        false
-                    }
-                }
-            } else {
-                false
+        let leak = 'detect: {
+            if tap.is_high() {
+                tap_led.set_high()?;
+                allowance = 0;
+                break 'detect false;
             }
-        } else {
-            tap_led.set_high()?;
-            ALLOWANCE.swap(0, Ordering::Relaxed);
+
+            tap_led.set_low()?;
+            if flow <= 10 {
+                break 'detect false;
+            }
+
+            if should_bypass.load(Ordering::Relaxed) {
+                valve.start_flow()?;
+                log::warn!("leak detected but bypassed");
+                break 'detect true;
+            }
+
+            // NOTE: Threshold of 1 is technically just a `bool`.
+            allowance += 1;
+            if allowance <= 1 {
+                log::warn!("leak detected, within allowance");
+                break 'detect false;
+            }
+
+            valve.stop_flow()?;
+            log::warn!("leak detected and valve actuated");
             false
         };
 
@@ -70,13 +73,13 @@ pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
             Command::None => log::info!("no command issued from the server"),
             Command::Open => {
                 should_bypass.store(true, Ordering::Relaxed);
-                ALLOWANCE.swap(0, Ordering::Relaxed);
                 valve.start_flow()?;
+                allowance = 0;
                 log::warn!("server issued a remote bypass");
             }
             Command::Close => {
-                ALLOWANCE.swap(0, Ordering::Relaxed);
                 valve.stop_flow()?;
+                allowance = 0;
                 log::warn!("server issued a remote shutdown");
             }
         }

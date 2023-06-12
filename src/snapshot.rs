@@ -1,4 +1,4 @@
-use core::sync::atomic::{AtomicBool, Ordering};
+use core::sync::atomic::{AtomicBool, Ordering, AtomicU8};
 use embedded_svc::utils::asyncify::timer::AsyncTimer;
 use esp_idf_hal::gpio::{Input, Output, Pin, PinDriver};
 use esp_idf_svc::{errors::EspIOError, timer::EspTimer};
@@ -14,6 +14,8 @@ use crate::{
     http::{ping, Command, HttpClient},
     valve::ValveSystem,
 };
+
+static ALLOWANCE: AtomicU8 = AtomicU8::new(0);
 
 pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
     addr: MacAddress,
@@ -37,16 +39,23 @@ pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
                 if should_bypass.load(Ordering::Relaxed) {
                     valve.start_flow()?;
                     log::warn!("leak detected but bypassed");
+                    true
                 } else {
-                    valve.stop_flow()?;
-                    log::info!("leak detected and valve actuated");
+                    if ALLOWANCE.fetch_add(1, Ordering::Relaxed) > 0 {
+                        valve.stop_flow()?;
+                        log::warn!("leak detected and valve actuated");
+                        true
+                    } else {
+                        log::warn!("leak detected, within allowance");
+                        false
+                    }
                 }
-                true
             } else {
                 false
             }
         } else {
             tap_led.set_high()?;
+            ALLOWANCE.swap(0, Ordering::Relaxed);
             false
         };
 
@@ -61,10 +70,12 @@ pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
             Command::None => log::info!("no command issued from the server"),
             Command::Open => {
                 should_bypass.store(true, Ordering::Relaxed);
+                ALLOWANCE.swap(0, Ordering::Relaxed);
                 valve.start_flow()?;
                 log::warn!("server issued a remote bypass");
             }
             Command::Close => {
+                ALLOWANCE.swap(0, Ordering::Relaxed);
                 valve.stop_flow()?;
                 log::warn!("server issued a remote shutdown");
             }

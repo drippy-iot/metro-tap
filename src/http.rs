@@ -47,7 +47,10 @@ pub async fn register_to_server(http: &mut HttpClient, mac: &[u8]) -> Result<Com
         201 => Command::None,
         204 => Command::Close,
         205 => Command::Open,
-        _ => core::unreachable!(),
+        _ => {
+            log::warn!("{status}")
+            core::unreachable!();
+        }
     })
 }
 

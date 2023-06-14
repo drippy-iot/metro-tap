@@ -15,7 +15,7 @@ use esp_idf_hal::{
 use esp_idf_svc::{
     errors::EspIOError,
     eventloop::EspSystemEventLoop,
-    http::client::{Configuration as HttpConfig, EspHttpConnection},
+    http::client::{Configuration as HttpConfig, EspHttpConnection, FollowRedirectsPolicy},
     nvs::EspDefaultNvsPartition,
     timer::EspTimerService,
     wifi::{AsyncWifi, EspWifi},
@@ -77,7 +77,11 @@ fn main() -> Result<(), EspError> {
     let timer = timer_svc.timer()?;
 
     // Set up asynchronous HTTP service
-    let conn = EspHttpConnection::new(&HttpConfig { use_global_ca_store: true, ..Default::default() })?;
+    let conn = EspHttpConnection::new(&HttpConfig {
+        follow_redirects_policy: FollowRedirectsPolicy::FollowAll,
+        use_global_ca_store: true,
+        ..Default::default()
+    })?;
     let conn = TrivialUnblockingConnection::new(conn);
     let mut http = http::HttpClient::wrap(conn);
 

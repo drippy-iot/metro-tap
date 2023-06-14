@@ -59,7 +59,7 @@ pub async fn report<Tap: Pin, Valve: Pin, TapLed: Pin, ValveLed: Pin>(
 
             valve.stop_flow()?;
             log::warn!("leak detected and valve actuated");
-            false
+            true
         };
 
         // NOTE: We send the normalized number of ticks (i.e., ticks per second) to the Cloud.

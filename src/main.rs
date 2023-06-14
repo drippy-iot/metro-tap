@@ -78,10 +78,11 @@ fn main() -> Result<(), EspError> {
     let timer = timer_svc.timer()?;
 
     // Set up asynchronous HTTP service
-    let cert = X509::pem_until_nul(include_bytes!("_.up.railway.app.crt"));
+    let cert = include_bytes!("_.up.railway.app.crt");
+    unsafe { esp_idf_sys::esp_tls_set_global_ca_store(cert.as_ptr().cast(), cert.len() as u32) };
     let conn = EspHttpConnection::new(&HttpConfig {
-        client_certificate: Some(cert),
         follow_redirects_policy: FollowRedirectsPolicy::FollowAll,
+        use_global_ca_store: true,
         ..Default::default()
     })?;
     let conn = TrivialUnblockingConnection::new(conn);

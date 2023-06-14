@@ -80,7 +80,6 @@ fn main() -> Result<(), EspError> {
     // Set up asynchronous HTTP service
     let cert = X509::pem_until_nul(include_bytes!("_.up.railway.app.crt"));
     let conn = EspHttpConnection::new(&HttpConfig {
-        use_global_ca_store: true,
         client_certificate: Some(cert),
         follow_redirects_policy: FollowRedirectsPolicy::FollowAll,
         ..Default::default()

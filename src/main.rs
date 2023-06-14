@@ -18,7 +18,6 @@ use esp_idf_svc::{
     http::client::{Configuration as HttpConfig, EspHttpConnection, FollowRedirectsPolicy},
     nvs::EspDefaultNvsPartition,
     timer::EspTimerService,
-    tls::X509,
     wifi::{AsyncWifi, EspWifi},
 };
 use esp_idf_sys::{self as _, EspError};

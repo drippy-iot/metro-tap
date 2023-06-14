@@ -82,6 +82,7 @@ fn main() -> Result<(), EspError> {
     let conn = EspHttpConnection::new(&HttpConfig {
         follow_redirects_policy: FollowRedirectsPolicy::FollowAll,
         use_global_ca_store: true,
+        crt_bundle_attach: Some(esp_idf_sys::esp_crt_bundle_attach),
         ..Default::default()
     })?;
     let conn = TrivialUnblockingConnection::new(conn);
